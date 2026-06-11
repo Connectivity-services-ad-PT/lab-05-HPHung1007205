@@ -106,20 +106,35 @@ def build_problem(
     return problem
 
 
+from http import HTTPStatus # ◄ Thêm dòng này lên đầu file nếu chưa có
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    # Nếu detail đã là Dict (do bạn tự build từ trước), giữ nguyên nó
     if isinstance(exc.detail, dict):
         problem = exc.detail
     else:
+        # Lấy title an toàn từ thư viện http chuẩn của Python
+        try:
+            title = HTTPStatus(exc.status_code).phrase
+        except ValueError:
+            title = "HTTP Error"
+
         problem = build_problem(
             status_code=exc.status_code,
-            title=status.HTTP_STATUS_CODES.get(exc.status_code, "HTTP Error"),
+            title=title,
             detail=str(exc.detail),
             instance=str(request.url.path),
         )
 
+    # Đảm bảo các giá trị mặc định luôn tồn tại một cách an toàn
+    try:
+        default_title = HTTPStatus(exc.status_code).phrase
+    except ValueError:
+        default_title = "HTTP Error"
+
     problem.setdefault("status", exc.status_code)
-    problem.setdefault("title", status.HTTP_STATUS_CODES.get(exc.status_code, "HTTP Error"))
+    problem.setdefault("title", default_title)
     problem.setdefault("type", "about:blank")
     problem.setdefault("detail", "Request failed")
     problem.setdefault("instance", str(request.url.path))

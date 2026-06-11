@@ -41,4 +41,5 @@ def predict() -> Prediction:
 
 if __name__ == "__main__":
     import uvicorn
+    # Đảm bảo port chính xác là 9000
     uvicorn.run(app, host="0.0.0.0", port=9000)

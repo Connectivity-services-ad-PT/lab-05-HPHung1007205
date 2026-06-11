@@ -2,6 +2,7 @@ version: "3.8"
 
 services:
   # Service API FastAPI
+  # Service API FastAPI
   api:
     build:
       context: .
@@ -9,6 +10,8 @@ services:
     container_name: fit4110-api-lab05
     env_file:
       - .env
+    environment:
+      - AUTH_TOKEN=${AUTH_TOKEN}  # Đảm bảo API đọc được token bảo mật từ file .env
     depends_on:
       db:
         condition: service_healthy
@@ -20,11 +23,12 @@ services:
     ports:
       - "${APP_PORT:-8000}:8000"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
+      # SỬA TẠI ĐÂY: Đổi cổng kết nối healthcheck nội bộ từ 9000 về đúng 8000
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
+      interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 5s
 
   # PostgreSQL database service
   db:
@@ -46,20 +50,21 @@ services:
 
   # AI service mẫu dùng Python HTTP server hoặc FastAPI
   ai-service:
-    image: python:3.11-slim
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: fit4110-ai-lab05
-    working_dir: /service
-    volumes:
-      - ./src/ai_service:/service
-    command: ["python", "main.py"]
+    working_dir: /app
+    # Chạy file main.py thông qua môi trường ảo venv đã được build sẵn
+    command: ["/opt/venv/bin/python", "src/ai_service/main.py"]
     networks:
       - team-internal
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import requests; import sys; sys.exit(0) if requests.get('http://localhost:9000/health').status_code == 200 else sys.exit(1)\""]
-      interval: 30s
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/health', timeout=5)"]
+      interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 5s
 
 networks:
   team-internal:
