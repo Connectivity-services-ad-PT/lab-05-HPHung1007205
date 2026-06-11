@@ -1,114 +1,73 @@
-# RUN_COMPOSE.md – Hướng dẫn chạy Lab 05
+# 1. Clone repo
+Bash
+git clone https://github.com/Connectivity-services-ad-PT/lab-05-HPHung1007205.git
+cd lab-05-HPHung1007205
+# 2. Cài đặt dependencies kiểm thử
+Để xuất được báo cáo HTML và XML, cần cài đặt các reporter với cờ tránh xung đột phiên bản:
 
-Tài liệu này hướng dẫn người khác clone repo sạch và chạy lại stack Compose của Lab 05.
+Bash
+npm install --legacy-peer-deps
+# 3. Build & chạy stack Docker Compose
+Chuẩn bị môi trường: Copy file mẫu và đảm bảo đã điền đầy đủ các biến, đặc biệt là AUTH_TOKEN.
 
----
-
-## 1. Clone repo
-
-```bash
-git clone <repo-url>
-cd FIT4110_lab05_docker_compose_readiness
-```
-
----
-
-## 2. Cài dependencies cho Newman/Prism/Spectral (tuỳ chọn)
-
-```bash
-npm install
-```
-
----
-
-## 3. Build & chạy stack Docker Compose
-
-```bash
-# Copy .env.example sang .env và chỉnh sửa nếu cần
+Bash
 cp .env.example .env
+Khởi động hệ thống: Build images và chạy các container trong nền.
 
-# Build images (nếu chưa có) và khởi động các container trong nền
+Bash
 docker compose up -d --build
-```
+Các container được tạo bao gồm:
 
-Lệnh trên sẽ tạo các container:
+fit4110-db-lab05: PostgreSQL 15 (Lưu trữ dữ liệu IoT).
 
-- `fit4110-db-lab05` (PostgreSQL)
-- `fit4110-ai-lab05` (AI service mẫu chạy port 9000)
-- `fit4110-api-lab05` (API FastAPI trên port 8000)
+fit4110-ai-lab05: AI Service (Cổng nội bộ 9000).
 
-Theo dõi log:
+fit4110-api-lab05: FastAPI Ingestion (Cổng 8000).
 
-```bash
-docker compose logs -f
-```
+# 4. Kiểm tra trạng thái hệ thống (Health Check)
+Sau khi khởi động, đợi khoảng 10-15 giây để Database sẵn sàng, sau đó kiểm tra:
 
-Sau vài giây, kiểm tra health của mỗi service:
+Kiểm tra API chính:
 
-```bash
-# API
+Bash
 curl http://localhost:8000/health
+# Kết quả mong đợi: {"status":"ok","service":"iot-ingestion",...}
+Kiểm tra trạng thái Container:
 
-# AI service
-curl http://localhost:9000/health
+Bash
+docker compose ps
+# Tất cả service phải hiển thị trạng thái "Up (healthy)"
+# 5. Chạy Newman End-to-End Test
+Chạy kịch bản kiểm thử tự động để xác nhận luồng logic API, Auth và Database:
 
-# DB readiness
-docker exec -it fit4110-db-lab05 pg_isready -U $POSTGRES_USER
-```
+Bash
+npx newman run postman/collections/FIT4110_lab05.postman_collection.json \
+  -e postman/environments/FIT4110_lab05_local.postman_environment.json \
+  --reporters cli,junit,html \
+  --reporter-html-export reports/newman-lab05-compose.html \
+  --reporter-junit-export reports/newman-lab05-compose.xml
+Báo cáo sẽ được sinh ra tại:
 
-Bạn cũng có thể truy cập endpoint `/predict` của AI service để xem kết quả mẫu:
+reports/newman-lab05-compose.html (Xem trên trình duyệt).
 
-```bash
-curl -X POST http://localhost:9000/predict
-```
+reports/newman-lab05-compose.xml (Dành cho CI/CD).
 
----
-
-## 4. Chạy Newman test trên stack Compose (tuỳ chọn)
-
-```bash
-npm run test:compose
-```
-
-Report sinh tại:
-
-```text
-reports/newman-lab05-compose.xml
-reports/newman-lab05-compose.html
-```
-
----
-
-## 5. Dừng stack
-
-Khi không cần nữa, dừng và xoá các container bằng:
-
-```bash
+# 6. Dừng và dọn dẹp
+Bash
+# Dừng container
 docker compose down
-```
 
-Nếu muốn xoá volume dữ liệu của DB, thêm tuỳ chọn `-v`:
-
-```bash
+# Dừng container và xóa dữ liệu Database
 docker compose down -v
-```
+# 7. Mẹo gỡ lỗi (Troubleshooting)
+Lỗi 401 Unauthorized: Kiểm tra xem biến AUTH_TOKEN trong file .env có khớp với Token đang dùng trong Postman Environment không.
 
----
+Lỗi 500 Internal Server Error: Đảm bảo container api đã nhận được biến AUTH_TOKEN trong phần environment của docker-compose.yml.
 
-## 6. Lệnh nhanh
+Lỗi ENOENT (File not found): Luôn sử dụng đường dẫn tương đối từ thư mục gốc của dự án khi chạy Newman (như lệnh ở mục 5).
 
-Bạn có thể dùng Makefile:
-
-```bash
-make compose-up
-make compose-down
-make logs
-```
-
----
-
-## 7. Mẹo gỡ lỗi
-
-- Sử dụng `docker compose ps` để xem trạng thái container.
-- Nếu API trả lỗi kết nối DB, hãy kiểm tra biến môi trường `POSTGRES_*` trong `.env` và đảm bảo DB đã sẵn sàng (`pg_isready`).
-- Nếu AI service cần tải mô hình lớn, tăng `start_period` của healthcheck trong `docker-compose.yml`.
+Sau khi lưu file này, bạn nhớ đẩy lên GitHub nhé:
+Bash
+git add RUN_COMPOSE.md
+git commit -m "docs: update run guide with correct paths and port configurations"
+git push origin main
